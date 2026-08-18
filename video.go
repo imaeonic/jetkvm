@@ -24,6 +24,10 @@ func triggerVideoStateUpdate() {
 		writeJSONRPCEvent("videoInputState", lastVideoState, currentSession)
 	}()
 
+	// The RDP daemon is a local transport peer rather than a WebRTC session.
+	// Keep it informed of lock/resolution/fps changes independently.
+	rdpBridge.publishVideoState(lastVideoState)
+
 	// Publish video state to MQTT
 	if mqttManager != nil {
 		mqttManager.publishVideoState()
@@ -60,7 +64,7 @@ func isHostDisplayAdvertised() bool {
 }
 
 func shouldAdvertiseHostDisplayLocked() bool {
-	return !config.HideDisplayWhenIdle || getActiveSessions() > 0
+	return !config.HideDisplayWhenIdle || getTotalActiveSessions() > 0
 }
 
 func setHostDisplayAdvertised(enabled bool, reason string, force bool) error {
@@ -184,7 +188,7 @@ func doVideoSleepModeTicker(ctx context.Context, duration time.Duration) {
 	for {
 		select {
 		case <-timer.C:
-			if getActiveSessions() > 0 {
+			if getTotalActiveSessions() > 0 {
 				nativeLogger.Warn().Msg("not going to enter HDMI sleep mode because there are active sessions")
 				continue
 			}

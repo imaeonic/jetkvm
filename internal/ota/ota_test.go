@@ -28,6 +28,36 @@ var testDataFS embed.FS
 const pseudoDeviceID = "golang-test"
 const releaseAPIEndpoint = "https://api.jetkvm.com/releases"
 
+func TestGetUpdateURLUsesTrustedEndpointOverride(t *testing.T) {
+	state := &State{releaseAPIEndpoint: releaseAPIEndpoint}
+	got, err, custom := state.getUpdateURL(UpdateParams{
+		DeviceID:           pseudoDeviceID,
+		SKU:                "jetkvm-v2",
+		Components:         map[string]string{"system": ""},
+		IncludePreRelease:  true,
+		ReleaseAPIEndpoint: "https://github.com/imaeonic/rv1106-system/releases/download/rdp-console-latest/releases",
+	})
+
+	assert.NoError(t, err)
+	assert.False(t, custom)
+	assert.Contains(t, got, "github.com/imaeonic/rv1106-system/releases/download/rdp-console-latest/releases?")
+	assert.Contains(t, got, "deviceId=golang-test")
+	assert.Contains(t, got, "prerelease=true")
+	assert.Contains(t, got, "sku=jetkvm-v2")
+}
+
+func TestTrustedUpdateOptionsAreNotExposedToJSON(t *testing.T) {
+	encoded, err := json.Marshal(UpdateParams{
+		DisableAutoUpdate:  true,
+		ReleaseAPIEndpoint: "https://example.invalid/releases",
+	})
+
+	assert.NoError(t, err)
+	assert.NotContains(t, string(encoded), "DisableAutoUpdate")
+	assert.NotContains(t, string(encoded), "ReleaseAPIEndpoint")
+	assert.NotContains(t, string(encoded), "example.invalid")
+}
+
 type testData struct {
 	Name           string `json:"name"`
 	WithoutCerts   bool   `json:"withoutCerts"`

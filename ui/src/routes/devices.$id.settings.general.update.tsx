@@ -13,6 +13,7 @@ import { m } from "@localizations/messages.js";
 import { sleep } from "@/utils";
 import {
   checkUpdateComponents,
+  getRDPDevelopmentUpdateStatus,
   SystemVersionInfo,
   UpdateComponents,
   updateParams,
@@ -36,6 +37,10 @@ export default function SettingsGeneralUpdateRoute() {
     [searchParams],
   );
   const resetConfig = useMemo(() => searchParams.get("reset_config") === "true", [searchParams]);
+  const rdpDevelopment = useMemo(
+    () => searchParams.get("rdp_development") === "true",
+    [searchParams],
+  );
 
   const onClose = useCallback(async () => {
     navigate(".."); // back to the devices.$id.settings page
@@ -49,9 +54,9 @@ export default function SettingsGeneralUpdateRoute() {
 
   const onConfirmUpdate = useCallback(() => {
     setShouldReload(true);
-    send("tryUpdate", {});
+    send(rdpDevelopment ? "tryRdpDevUpdate" : "tryUpdate", {});
     setModalView("updating");
-  }, [send, setModalView, setShouldReload]);
+  }, [rdpDevelopment, send, setModalView, setShouldReload]);
 
   const onConfirmCustomUpdate = useCallback(
     (appTargetVersion?: string, systemTargetVersion?: string) => {
@@ -90,6 +95,7 @@ export default function SettingsGeneralUpdateRoute() {
       onConfirmCustomUpdate={onConfirmCustomUpdate}
       customAppVersion={customAppVersion}
       customSystemVersion={customSystemVersion}
+      rdpDevelopment={rdpDevelopment}
     />
   );
 }
@@ -100,12 +106,14 @@ export function Dialog({
   onConfirmCustomUpdate: onConfirmCustomUpdateCallback,
   customAppVersion,
   customSystemVersion,
+  rdpDevelopment,
 }: Readonly<{
   onClose: () => void;
   onConfirmUpdate: () => void;
   onConfirmCustomUpdate: (appVersion?: string, systemVersion?: string) => void;
   customAppVersion?: string;
   customSystemVersion?: string;
+  rdpDevelopment: boolean;
 }>) {
   const { navigateTo } = useDeviceUiNavigation();
 
@@ -151,6 +159,7 @@ export function Dialog({
             onCancelCheck={onClose}
             customAppVersion={customAppVersion}
             customSystemVersion={customSystemVersion}
+            rdpDevelopment={rdpDevelopment}
           />
         )}
 
@@ -185,11 +194,13 @@ function LoadingState({
   onCancelCheck,
   customAppVersion,
   customSystemVersion,
+  rdpDevelopment,
 }: {
   onFinished: (versionInfo: SystemVersionInfo) => void;
   onCancelCheck: () => void;
   customAppVersion?: string;
   customSystemVersion?: string;
+  rdpDevelopment: boolean;
 }) {
   const [progressWidth, setProgressWidth] = useState("0%");
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -200,6 +211,9 @@ function LoadingState({
   const progressBarRef = useRef<HTMLDivElement>(null);
 
   const checkUpdate = useCallback(async () => {
+    if (rdpDevelopment) {
+      return await getRDPDevelopmentUpdateStatus();
+    }
     if (!customAppVersion && !customSystemVersion) {
       return await getVersionInfo();
     }
@@ -208,7 +222,7 @@ function LoadingState({
     if (customSystemVersion) params.components!.system = customSystemVersion;
 
     return await checkUpdateComponents(params, false);
-  }, [customAppVersion, customSystemVersion, getVersionInfo]);
+  }, [customAppVersion, customSystemVersion, getVersionInfo, rdpDevelopment]);
 
   useEffect(() => {
     abortControllerRef.current = new AbortController();

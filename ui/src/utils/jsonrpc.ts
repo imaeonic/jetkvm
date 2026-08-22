@@ -266,3 +266,13 @@ export async function checkUpdateComponents(params: updateParams, includePreRele
   if (response.error) throw response.error;
   return response.result;
 }
+
+export async function getRDPDevelopmentUpdateStatus() {
+  const response = await callJsonRpc<SystemVersionInfo>({
+    method: "getRdpDevUpdateStatus",
+    maxAttempts: UPDATE_STATUS_RPC_MAX_ATTEMPTS,
+    attemptTimeoutMs: UPDATE_STATUS_RPC_TIMEOUT_MS,
+  });
+  if (response.error) throw response.error;
+  return response.result;
+}

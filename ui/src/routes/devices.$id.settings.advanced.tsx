@@ -334,7 +334,7 @@ export default function SettingsAdvancedRoute() {
                   placeholder={m.advanced_ssh_public_key_placeholder()}
                 />
                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                  {m.advanced_ssh_default_user()}{" "}<strong>root</strong>.
+                  {m.advanced_ssh_default_user()} <strong>root</strong>.
                 </p>
                 {!sshKey?.trim() && (
                   <p className="text-xs text-amber-600 dark:text-amber-500">
@@ -354,6 +354,18 @@ export default function SettingsAdvancedRoute() {
 
             <FeatureFlag minAppVersion="0.4.10" name="version-update">
               <div className="space-y-4">
+                <SettingsItem
+                  title={m.advanced_rdp_development_update_title()}
+                  description={m.advanced_rdp_development_update_description()}
+                >
+                  <Button
+                    size="SM"
+                    theme="light"
+                    text={m.advanced_rdp_development_update_button()}
+                    onClick={() => navigateTo("/settings/general/update?rdp_development=true")}
+                  />
+                </SettingsItem>
+
                 <SettingsItem
                   title={m.advanced_version_update_title()}
                   description={m.advanced_version_update_description()}
@@ -482,7 +494,9 @@ export default function SettingsAdvancedRoute() {
                     if ("error" in resp) {
                       setDefaultLogLevel(previousLevel);
                       notifications.error(
-                        m.advanced_error_set_log_level({ error: resp.error.data || m.unknown_error() }),
+                        m.advanced_error_set_log_level({
+                          error: resp.error.data || m.unknown_error(),
+                        }),
                       );
                       return;
                     }

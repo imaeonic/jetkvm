@@ -10,6 +10,31 @@ func setUpNativeHandlers() {
 	panicPlatformNotSupported()
 }
 
+func uiInit(rotation uint16) {
+	panicPlatformNotSupported()
+}
+
+func uiTick() {
+	panicPlatformNotSupported()
+}
+
+func videoInit(factor float64) error {
+	panicPlatformNotSupported()
+	return nil
+}
+
+func videoShutdown() {
+	panicPlatformNotSupported()
+}
+
+func videoStart() {
+	panicPlatformNotSupported()
+}
+
+func videoStop() {
+	panicPlatformNotSupported()
+}
+
 func uiSetVar(name string, value string) {
 	panicPlatformNotSupported()
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/uuid"
@@ -221,7 +222,7 @@ func rdpDevelopmentUpdateParams() (ota.UpdateParams, error) {
 		Components:         map[string]string{"system": ""},
 		IncludePreRelease:  true,
 		DisableAutoUpdate:  true,
-		ReleaseAPIEndpoint: rdpDevelopmentReleaseAPIEndpoint,
+		ReleaseAPIEndpoint: fmt.Sprintf("%s?cache=%d", rdpDevelopmentReleaseAPIEndpoint, time.Now().UnixNano()),
 	}, nil
 }
 

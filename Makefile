@@ -179,7 +179,15 @@ build_dev:
 		$(MAKE) _build_dev_inner VERSION_DEV=$(VERSION_DEV) SKIP_NATIVE_IF_EXISTS=$(SKIP_NATIVE_IF_EXISTS); \
 	fi
 
-_build_dev_inner: build_native
+ensure_frontend:
+	@if [ ! -f "static/index.html" ]; then \
+		echo "Embedded web UI is missing; building it now..."; \
+		$(MAKE) frontend; \
+	else \
+		echo "Embedded web UI is ready"; \
+	fi
+
+_build_dev_inner: ensure_frontend build_native
 	@echo "Building... $(VERSION_DEV)"
 	$(GO_CMD) build \
 		-ldflags="$(GO_LDFLAGS) -X $(KVM_PKG_NAME).builtAppVersion=$(VERSION_DEV)" \
@@ -330,7 +338,7 @@ build_release:
 		$(MAKE) _build_release_inner VERSION=$(VERSION) SKIP_NATIVE_IF_EXISTS=$(SKIP_NATIVE_IF_EXISTS); \
 	fi
 
-_build_release_inner: build_native
+_build_release_inner: ensure_frontend build_native
 	@echo "Building release..."
 	$(GO_CMD) build \
 		-ldflags="$(GO_LDFLAGS) -X $(KVM_PKG_NAME).builtAppVersion=$(VERSION)" \

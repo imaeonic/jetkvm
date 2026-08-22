@@ -19,6 +19,7 @@ import (
 const (
 	rdpBridgeProtocolVersion uint16 = 1
 	rdpBridgeSocketDefault          = "/run/jetkvm-rdp.sock"
+	rdpConsoleEnableFile            = "/userdata/jetkvm/rdp.enable"
 	rdpBridgeMaxMessage             = 16 * 1024 * 1024
 	rdpBridgeVideoQueue             = 3
 )
@@ -88,11 +89,61 @@ func rdpBridgeSocketPath() string {
 }
 
 func initRDPBridge() {
+	if !isRDPConsoleEnabled() {
+		logger.Info().Bool("failsafe", failsafeModeActive).Msg("RDP bridge disabled")
+		return
+	}
+
 	go func() {
 		if err := rdpBridge.serve(appCtx, rdpBridgeSocketPath()); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error().Err(err).Msg("RDP bridge stopped")
 		}
 	}()
+}
+
+func isRDPConsoleConfigured() bool {
+	_, err := os.Stat(rdpConsoleEnableFile)
+	return err == nil
+}
+
+func isRDPConsoleEnabled() bool {
+	return isRDPConsoleConfigured() && !failsafeModeActive
+}
+
+type RDPConsoleState struct {
+	Enabled bool `json:"enabled"`
+	Active  bool `json:"active"`
+}
+
+func rpcGetRDPConsoleState() RDPConsoleState {
+	return RDPConsoleState{
+		Enabled: isRDPConsoleConfigured(),
+		Active:  isRDPConsoleEnabled(),
+	}
+}
+
+func rpcSetRDPConsoleState(enabled bool) error {
+	if enabled {
+		devMode, err := rpcGetDevModeState()
+		if err != nil {
+			return fmt.Errorf("check Developer Mode: %w", err)
+		}
+		if !devMode.Enabled {
+			return fmt.Errorf("RDP console requires Developer Mode")
+		}
+		if err := os.MkdirAll(filepath.Dir(rdpConsoleEnableFile), 0755); err != nil {
+			return fmt.Errorf("create RDP settings directory: %w", err)
+		}
+		if err := os.WriteFile(rdpConsoleEnableFile, nil, 0644); err != nil {
+			return fmt.Errorf("enable RDP console: %w", err)
+		}
+		return nil
+	}
+
+	if err := os.Remove(rdpConsoleEnableFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("disable RDP console: %w", err)
+	}
+	return nil
 }
 
 func (s *rdpBridgeServer) serve(ctx context.Context, path string) error {

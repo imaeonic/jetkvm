@@ -28,6 +28,7 @@ export default function SettingsAdvancedRoute() {
   const [sshKey, setSSHKey] = useState<string>("");
   const { setDeveloperMode } = useSettingsStore();
   const [devChannel, setDevChannel] = useState(false);
+  const [rdpConsoleEnabled, setRdpConsoleEnabled] = useState(false);
   const [defaultLogLevel, setDefaultLogLevel] = useState<string>("WARN");
   const [usbEmulationEnabled, setUsbEmulationEnabled] = useState(false);
   const [showLoopbackWarning, setShowLoopbackWarning] = useState(false);
@@ -61,6 +62,12 @@ export default function SettingsAdvancedRoute() {
     send("getDevChannelState", {}, (resp: JsonRpcResponse) => {
       if ("error" in resp) return;
       setDevChannel(resp.result as boolean);
+    });
+
+    send("getRdpConsoleState", {}, (resp: JsonRpcResponse) => {
+      if ("error" in resp) return;
+      const result = resp.result as { enabled: boolean };
+      setRdpConsoleEnabled(result.enabled);
     });
 
     send("getLocalLoopbackOnly", {}, (resp: JsonRpcResponse) => {
@@ -155,6 +162,22 @@ export default function SettingsAdvancedRoute() {
       });
     },
     [send, setDevChannel],
+  );
+
+  const handleRdpConsoleChange = useCallback(
+    (enabled: boolean) => {
+      send("setRdpConsoleState", { enabled }, (resp: JsonRpcResponse) => {
+        if ("error" in resp) {
+          notifications.error(
+            m.advanced_rdp_console_error({ error: resp.error.data || m.unknown_error() }),
+          );
+          return;
+        }
+        setRdpConsoleEnabled(enabled);
+        notifications.success(m.advanced_rdp_console_reboot_required());
+      });
+    },
+    [send],
   );
 
   const applyLoopbackOnlyMode = useCallback(
@@ -354,6 +377,16 @@ export default function SettingsAdvancedRoute() {
 
             <FeatureFlag minAppVersion="0.4.10" name="version-update">
               <div className="space-y-4">
+                <SettingsItem
+                  title={m.advanced_rdp_console_title()}
+                  description={m.advanced_rdp_console_description()}
+                >
+                  <Checkbox
+                    checked={rdpConsoleEnabled}
+                    onChange={e => handleRdpConsoleChange(e.target.checked)}
+                  />
+                </SettingsItem>
+
                 <SettingsItem
                   title={m.advanced_rdp_development_update_title()}
                   description={m.advanced_rdp_development_update_description()}

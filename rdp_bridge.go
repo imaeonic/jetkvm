@@ -44,8 +44,8 @@ func rdpTargetAddress() string {
 	return net.JoinHostPort(usbgadget.NCMPeerIPv4, strconv.Itoa(rdpTargetPort))
 }
 
-func rdpDialer(timeout time.Duration) net.Dialer {
-	return net.Dialer{
+func rdpDialer(timeout time.Duration) *net.Dialer {
+	return &net.Dialer{
 		Timeout:   timeout,
 		KeepAlive: 30 * time.Second,
 		LocalAddr: &net.TCPAddr{IP: net.ParseIP("172.16.55.1")},

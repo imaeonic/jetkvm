@@ -20,11 +20,11 @@ func rpcSetUsbDeviceStateRDP(device string, enabled bool) error {
 }
 
 type RDPBridgeStatus struct {
-	Enabled        bool   `json:"enabled"`
-	ListenPort     int    `json:"listenPort"`
-	Target         string `json:"target"`
-	TargetReachable bool  `json:"targetReachable"`
-	ActiveSessions int64  `json:"activeSessions"`
+	Enabled         bool   `json:"enabled"`
+	ListenPort      int    `json:"listenPort"`
+	Target          string `json:"target"`
+	TargetReachable bool   `json:"targetReachable"`
+	ActiveSessions  int64  `json:"activeSessions"`
 }
 
 func rpcGetRDPBridgeStatus() (RDPBridgeStatus, error) {
@@ -37,10 +37,9 @@ func rpcGetRDPBridgeStatus() (RDPBridgeStatus, error) {
 	}, nil
 }
 
-// Extend the existing RPC table without replacing jsonrpc.go. This keeps the
-// R&D branch close to current upstream while adding the NCM endpoint-budget
-// query expected by the imported USB settings UI and an RDP status endpoint.
-func init() {
+// registerRDPRPCHandlers extends the existing RPC table without replacing
+// jsonrpc.go, keeping the R&D branch close to current upstream.
+func registerRDPRPCHandlers() {
 	rpcHandlers["getUsbEndpointReport"] = RPCHandler{Func: rpcGetUsbEndpointReport, Params: []string{"devices"}}
 	rpcHandlers["setUsbDeviceState"] = RPCHandler{Func: rpcSetUsbDeviceStateRDP, Params: []string{"device", "enabled"}}
 	rpcHandlers["getRdpBridgeStatus"] = RPCHandler{Func: rpcGetRDPBridgeStatus}

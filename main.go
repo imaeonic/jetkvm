@@ -46,6 +46,7 @@ func Main() {
 	}
 
 	LoadConfig()
+	prepareRDPUSBProfile()
 
 	var cancel context.CancelFunc
 	appCtx, cancel = context.WithCancel(context.Background())
@@ -66,6 +67,7 @@ func Main() {
 	// initialize usb gadget
 	setProcTitle("initUsbGadget")
 	initUsbGadget()
+	initRDPBridge(appCtx)
 
 	setProcTitle("initNative")
 	initNative(systemVersionLocal, appVersionLocal)

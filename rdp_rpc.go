@@ -10,13 +10,26 @@ func rpcGetUsbEndpointReport(devices usbgadget.Devices) (UsbEndpointReport, erro
 	return UsbEndpointReport{ExceedsBudget: usbgadget.ExceedsEndpointBudget(&devices)}, nil
 }
 
-func rpcSetUsbDeviceStateRDP(device string, enabled bool) error {
-	if device != "ncm" {
-		return rpcSetUsbDeviceState(device, enabled)
+func makeRDPUSBDevices(devices usbgadget.Devices) usbgadget.Devices {
+	devices.Ncm = true
+	if usbgadget.ExceedsEndpointBudget(&devices) && devices.RelativeMouse {
+		devices.RelativeMouse = false
 	}
-	config.UsbDevices.Ncm = enabled
-	gadget.SetGadgetDevices(effectiveUsbDevices())
-	return updateUsbRelatedConfig()
+	return devices
+}
+
+func rpcSetUsbDevicesRDP(devices usbgadget.Devices) error {
+	return rpcSetUsbDevices(makeRDPUSBDevices(devices))
+}
+
+func rpcSetUsbDeviceStateRDP(device string, enabled bool) error {
+	if device == "ncm" {
+		// CDC-NCM is the transport for the RDP prototype and remains enabled.
+		config.UsbDevices.Ncm = true
+		gadget.SetGadgetDevices(effectiveUsbDevices())
+		return updateUsbRelatedConfig()
+	}
+	return rpcSetUsbDeviceState(device, enabled)
 }
 
 type RDPBridgeStatus struct {
@@ -41,6 +54,7 @@ func rpcGetRDPBridgeStatus() (RDPBridgeStatus, error) {
 // jsonrpc.go, keeping the R&D branch close to current upstream.
 func registerRDPRPCHandlers() {
 	rpcHandlers["getUsbEndpointReport"] = RPCHandler{Func: rpcGetUsbEndpointReport, Params: []string{"devices"}}
+	rpcHandlers["setUsbDevices"] = RPCHandler{Func: rpcSetUsbDevicesRDP, Params: []string{"devices"}}
 	rpcHandlers["setUsbDeviceState"] = RPCHandler{Func: rpcSetUsbDeviceStateRDP, Params: []string{"device", "enabled"}}
 	rpcHandlers["getRdpBridgeStatus"] = RPCHandler{Func: rpcGetRDPBridgeStatus}
 }

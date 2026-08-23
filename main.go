@@ -47,6 +47,7 @@ func Main() {
 
 	LoadConfig()
 	prepareRDPUSBProfile()
+	registerRDPRPCHandlers()
 
 	var cancel context.CancelFunc
 	appCtx, cancel = context.WithCancel(context.Background())

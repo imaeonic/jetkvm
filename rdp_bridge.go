@@ -93,7 +93,7 @@ func runRDPBridge(ctx context.Context) {
 func proxyRDPSession(client net.Conn) {
 	defer client.Close()
 
-	target, err := rdpDialer(4 * time.Second).Dial("tcp", rdpTargetAddress())
+	target, err := rdpDialer(4*time.Second).Dial("tcp", rdpTargetAddress())
 	if err != nil {
 		rdpBridgeDialFailures.Inc()
 		rdpBridgeTargetUp.Set(0)
@@ -151,7 +151,7 @@ func monitorRDPTarget(ctx context.Context) {
 }
 
 func probeRDPTarget() {
-	conn, err := rdpDialer(1200 * time.Millisecond).Dial("tcp", rdpTargetAddress())
+	conn, err := rdpDialer(1200*time.Millisecond).Dial("tcp", rdpTargetAddress())
 	if err != nil {
 		rdpBridgeTargetUp.Set(0)
 		rdpBridgeTargetReachable.Store(false)

@@ -1,6 +1,10 @@
 package kvm
 
-import "github.com/jetkvm/kvm/internal/usbgadget"
+import (
+	"fmt"
+
+	"github.com/jetkvm/kvm/internal/usbgadget"
+)
 
 type UsbEndpointReport struct {
 	ExceedsBudget bool `json:"exceedsBudget"`
@@ -10,26 +14,42 @@ func rpcGetUsbEndpointReport(devices usbgadget.Devices) (UsbEndpointReport, erro
 	return UsbEndpointReport{ExceedsBudget: usbgadget.ExceedsEndpointBudget(&devices)}, nil
 }
 
-func makeRDPUSBDevices(devices usbgadget.Devices) usbgadget.Devices {
-	devices.Ncm = true
-	if usbgadget.ExceedsEndpointBudget(&devices) && devices.RelativeMouse {
-		devices.RelativeMouse = false
-	}
-	return devices
-}
-
 func rpcSetUsbDevicesRDP(devices usbgadget.Devices) error {
-	return rpcSetUsbDevices(makeRDPUSBDevices(devices))
+	return rpcSetUsbDevices(normalizeRDPUSBDevices(devices))
 }
 
 func rpcSetUsbDeviceStateRDP(device string, enabled bool) error {
-	if device == "ncm" {
-		// CDC-NCM is the transport for the RDP prototype and remains enabled.
-		config.UsbDevices.Ncm = true
-		gadget.SetGadgetDevices(effectiveUsbDevices())
-		return updateUsbRelatedConfig()
+	devices := *config.UsbDevices
+	switch device {
+	case "absoluteMouse":
+		devices.AbsoluteMouse = enabled
+	case "relativeMouse":
+		devices.RelativeMouse = enabled
+	case "keyboard":
+		devices.Keyboard = enabled
+	case "massStorage":
+		devices.MassStorage = enabled
+	case "serialConsole":
+		devices.SerialConsole = enabled
+	case "audio":
+		devices.Audio = enabled
+		if !enabled {
+			config.AudioEnabled = false
+		}
+	case "ncm":
+		// CDC-NCM is the required transport for this prototype.
+		devices.Ncm = true
+	default:
+		return fmt.Errorf("invalid device: %s", device)
 	}
-	return rpcSetUsbDeviceState(device, enabled)
+
+	devices = normalizeRDPUSBDevices(devices)
+	config.UsbDevices = &devices
+	if !effectiveAudioEnabled() {
+		stopAudio()
+	}
+	gadget.SetGadgetDevices(effectiveUsbDevices())
+	return updateUsbRelatedConfig()
 }
 
 type RDPBridgeStatus struct {

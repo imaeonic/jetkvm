@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/google/uuid"
@@ -15,6 +16,8 @@ import (
 var builtAppVersion = "0.1.0+dev"
 
 var otaState *ota.State
+
+const rdpDevelopmentReleaseAPIEndpoint = "https://github.com/imaeonic/rv1106-system/releases/download/rdp-console-latest/releases"
 
 func initOta() {
 	otaState = ota.NewState(ota.Options{
@@ -194,6 +197,58 @@ func rpcTryUpdateComponents(params updateParams, includePreRelease bool, resetCo
 		err := otaState.TryUpdate(context.Background(), updateParams)
 		if err != nil {
 			otaLogger.Warn().Err(err).Msg("failed to try update")
+		}
+	}()
+	return nil
+}
+
+func rdpDevelopmentUpdateParams() (ota.UpdateParams, error) {
+	devMode, err := rpcGetDevModeState()
+	if err != nil {
+		return ota.UpdateParams{}, fmt.Errorf("failed to check Developer Mode: %w", err)
+	}
+	if !devMode.Enabled {
+		return ota.UpdateParams{}, fmt.Errorf("RDP development updates require Developer Mode")
+	}
+
+	const supportedSKU = "jetkvm-v2"
+	if sku := GetDeviceSKU(); sku != supportedSKU {
+		return ota.UpdateParams{}, fmt.Errorf("RDP development updates require %s hardware; detected %s", supportedSKU, sku)
+	}
+
+	return ota.UpdateParams{
+		DeviceID:           GetDeviceID(),
+		SKU:                supportedSKU,
+		Components:         map[string]string{"system": ""},
+		IncludePreRelease:  true,
+		DisableAutoUpdate:  true,
+		ReleaseAPIEndpoint: fmt.Sprintf("%s?cache=%d", rdpDevelopmentReleaseAPIEndpoint, time.Now().UnixNano()),
+	}, nil
+}
+
+func rpcGetRDPDevelopmentUpdateStatus() (*ota.UpdateStatus, error) {
+	params, err := rdpDevelopmentUpdateParams()
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := otaState.GetUpdateStatus(context.Background(), params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check RDP development update: %w", err)
+	}
+	info.WillDisableAutoUpdate = config.AutoUpdateEnabled
+	return info, nil
+}
+
+func rpcTryRDPDevelopmentUpdate() error {
+	params, err := rdpDevelopmentUpdateParams()
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		if err := otaState.TryUpdate(context.Background(), params); err != nil {
+			otaLogger.Warn().Err(err).Msg("failed to install RDP development update")
 		}
 	}()
 	return nil

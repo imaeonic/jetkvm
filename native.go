@@ -69,6 +69,15 @@ func initNative(systemVersion *semver.Version, appVersion *semver.Version) {
 			}
 		},
 		OnVideoFrameReceived: func(frame []byte, duration time.Duration) {
+			// Passive diagnostics: when /userdata/jetkvm/h264-probe.enable exists,
+			// inspect the first encoded frames without altering the working capture lifecycle.
+			debugH264Frame(frame)
+
+			// Feed the local RDP transport directly from the encoded native frame.
+			// This intentionally happens before WebRTC so the RDP path never needs
+			// to decode and re-encode the HDMI capture.
+			rdpBridge.publishVideoFrame(frame, duration, lastVideoState)
+
 			if currentSession != nil {
 				err := currentSession.VideoTrack.WriteSample(media.Sample{Data: frame, Duration: duration})
 				if err != nil {
@@ -78,7 +87,7 @@ func initNative(systemVersion *semver.Version, appVersion *semver.Version) {
 		},
 		GetSessionInfo: func() diagnostics.SessionInfo {
 			info := diagnostics.SessionInfo{
-				ActiveSessions:    getActiveSessions(),
+				ActiveSessions:    getTotalActiveSessions(),
 				HasCurrentSession: currentSession != nil,
 			}
 			if currentSession != nil {

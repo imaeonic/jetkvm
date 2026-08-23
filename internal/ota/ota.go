@@ -32,7 +32,12 @@ func (s *State) GetReleaseAPIEndpoint() string {
 
 // getUpdateURL returns the update URL for the given parameters
 func (s *State) getUpdateURL(params UpdateParams) (string, error, bool) {
-	updateURL, err := url.Parse(s.releaseAPIEndpoint)
+	releaseAPIEndpoint := s.releaseAPIEndpoint
+	if params.ReleaseAPIEndpoint != "" {
+		releaseAPIEndpoint = params.ReleaseAPIEndpoint
+	}
+
+	updateURL, err := url.Parse(releaseAPIEndpoint)
 	if err != nil {
 		return "", fmt.Errorf("error parsing update metadata URL: %w", err), false
 	}
@@ -266,9 +271,10 @@ func (s *State) doUpdate(ctx context.Context, params UpdateParams) error {
 	}
 
 	if s.rebootNeeded {
-		if appUpdate.customVersionUpdate || systemUpdate.customVersionUpdate {
-			scopedLogger.Info().Msg("disabling auto-update due to custom version update")
-			// If they are explicitly updating a custom version, we assume they want to disable auto-update
+		if appUpdate.customVersionUpdate || systemUpdate.customVersionUpdate || params.DisableAutoUpdate {
+			scopedLogger.Info().Msg("disabling auto-update for explicitly selected update channel")
+			// Explicit versions and non-standard channels must not be silently
+			// replaced by the normal automatic update channel after reboot.
 			if _, err := s.setAutoUpdate(false); err != nil {
 				scopedLogger.Warn().Err(err).Msg("Failed to disable auto-update")
 			}
@@ -312,6 +318,13 @@ type UpdateParams struct {
 	Components        map[string]string `json:"components"`
 	IncludePreRelease bool              `json:"includePreRelease"`
 	ResetConfig       bool              `json:"resetConfig"`
+	// DisableAutoUpdate keeps an explicitly selected non-standard channel from
+	// being silently replaced by the normal automatic update channel.
+	DisableAutoUpdate bool `json:"-"`
+	// ReleaseAPIEndpoint overrides the configured update feed for trusted,
+	// application-defined channels. It is deliberately excluded from JSON so a
+	// remote RPC caller cannot turn the updater into an arbitrary URL fetcher.
+	ReleaseAPIEndpoint string `json:"-"`
 	// RequestID is a unique identifier for the update request
 	// When it's set, detailed trace logs will be enabled (if the log level is Trace)
 	RequestID string

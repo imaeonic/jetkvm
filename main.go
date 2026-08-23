@@ -71,6 +71,11 @@ func Main() {
 	initNative(systemVersionLocal, appVersionLocal)
 	initDisplay()
 
+	// RDP is implemented as a local transport peer. Start its Unix socket only
+	// after USB and the native video proxy are ready to service requests.
+	setProcTitle("initRDPBridge")
+	initRDPBridge()
+
 	http.DefaultClient.Timeout = 1 * time.Minute
 
 	err = rootcerts.UpdateDefaultTransport()
@@ -140,7 +145,7 @@ func Main() {
 				continue
 			}
 
-			if currentSession != nil {
+			if getTotalActiveSessions() > 0 {
 				logger.Debug().Msg("skipping update since a session is active")
 				time.Sleep(1 * time.Minute)
 				continue

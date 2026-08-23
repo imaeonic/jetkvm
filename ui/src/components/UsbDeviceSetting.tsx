@@ -27,6 +27,15 @@ export interface UsbDeviceConfig {
   mass_storage: boolean;
   serial_console: boolean;
   audio: boolean;
+  ncm: boolean;
+}
+
+interface RDPBridgeStatus {
+  enabled: boolean;
+  listenPort: number;
+  target: string;
+  targetReachable: boolean;
+  activeSessions: number;
 }
 
 const defaultUsbDeviceConfig: UsbDeviceConfig = {
@@ -36,6 +45,7 @@ const defaultUsbDeviceConfig: UsbDeviceConfig = {
   mass_storage: true,
   serial_console: false,
   audio: true,
+  ncm: false,
 };
 
 const usbPresets = [
@@ -49,6 +59,7 @@ const usbPresets = [
       mass_storage: true,
       serial_console: false,
       audio: true,
+      ncm: false,
     },
   },
   {
@@ -61,6 +72,7 @@ const usbPresets = [
       mass_storage: false,
       serial_console: false,
       audio: false,
+      ncm: false,
     },
   },
   {
@@ -76,6 +88,8 @@ export function UsbDeviceSetting() {
 
   const [usbDeviceConfig, setUsbDeviceConfig] = useState<UsbDeviceConfig>(defaultUsbDeviceConfig);
   const [selectedPreset, setSelectedPreset] = useState<string>("default");
+  const [overBudget, setOverBudget] = useState(false);
+  const [rdpStatus, setRdpStatus] = useState<RDPBridgeStatus | null>(null);
 
   const syncUsbDeviceConfig = useCallback(() => {
     send("getUsbDevices", {}, (resp: JsonRpcResponse) => {
@@ -92,7 +106,6 @@ export function UsbDeviceSetting() {
         setUsbDeviceConfig(usbConfigState);
         setUsbSerialConsoleEnabled(usbConfigState.serial_console);
 
-        // Set the appropriate preset based on current config
         const matchingPreset = usbPresets.find(
           preset =>
             preset.value !== "custom" &&
@@ -109,6 +122,13 @@ export function UsbDeviceSetting() {
     });
   }, [send, setUsbSerialConsoleEnabled]);
 
+  const syncRdpStatus = useCallback(() => {
+    send("getRdpBridgeStatus", {}, (resp: JsonRpcResponse) => {
+      if ("error" in resp) return;
+      setRdpStatus(resp.result as RDPBridgeStatus);
+    });
+  }, [send]);
+
   const handleUsbConfigChange = useCallback(
     (devices: UsbDeviceConfig) => {
       setLoading(true);
@@ -121,7 +141,6 @@ export function UsbDeviceSetting() {
           return;
         }
 
-        // We need some time to ensure the USB devices are updated
         await sleep(2000);
         setLoading(false);
         syncUsbDeviceConfig();
@@ -161,6 +180,19 @@ export function UsbDeviceSetting() {
     syncUsbDeviceConfig();
   }, [syncUsbDeviceConfig]);
 
+  useEffect(() => {
+    syncRdpStatus();
+    const timer = window.setInterval(syncRdpStatus, 3000);
+    return () => window.clearInterval(timer);
+  }, [syncRdpStatus]);
+
+  useEffect(() => {
+    send("getUsbEndpointReport", { devices: usbDeviceConfig }, (resp: JsonRpcResponse) => {
+      if ("error" in resp) return;
+      setOverBudget((resp.result as { exceedsBudget: boolean }).exceedsBudget);
+    });
+  }, [send, usbDeviceConfig]);
+
   return (
     <Fieldset disabled={loading} className="space-y-4">
       <div className="h-px w-full bg-slate-800/10 dark:bg-slate-300/20" />
@@ -169,6 +201,20 @@ export function UsbDeviceSetting() {
         title={m.usb_device_title()}
         description={m.usb_device_description()}
       />
+
+      <SettingsItem
+        title="RDP over USB"
+        description="Forwards TCP 3389 to the target Windows RDP service over the private USB network. Native RDP multi-monitor, clipboard, drive redirection and audio remain end-to-end."
+      >
+        <div className="text-right text-sm">
+          <div>{rdpStatus?.targetReachable ? "Windows RDP ready" : "Waiting for Windows RDP"}</div>
+          {rdpStatus && (
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              :{rdpStatus.listenPort} → {rdpStatus.target} · {rdpStatus.activeSessions} active
+            </div>
+          )}
+        </div>
+      </SettingsItem>
 
       <SettingsItem
         loading={loading}
@@ -255,7 +301,23 @@ export function UsbDeviceSetting() {
                 />
               </SettingsItem>
             </div>
+            <div className="space-y-4">
+              <SettingsItem
+                title="Enable Ethernet over USB (CDC-NCM)"
+                description="Required by the RDP prototype and kept enabled while this branch is running"
+              >
+                <Checkbox checked={usbDeviceConfig.ncm} onChange={onUsbConfigItemChange("ncm")} />
+              </SettingsItem>
+            </div>
           </div>
+          {overBudget && (
+            <div className="mt-4 rounded-md border border-amber-500/30 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-900/20 dark:text-amber-200">
+              This combination exceeds the device&apos;s available USB endpoints. Functions beyond
+              the limit may silently fail to work &mdash; Ethernet over USB (CDC-NCM) in particular
+              will appear connected but won&apos;t pass traffic. Disable a function (e.g. Relative
+              Mouse) to free an endpoint.
+            </div>
+          )}
           <div className="mt-6 flex gap-x-2">
             <Button
               size="SM"

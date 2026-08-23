@@ -4,47 +4,65 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/vishvananda/netlink"
 )
 
 const ncmInterfaceName = "usb0"
 
-// bringUpNcmInterface brings usb0 up. IPv6 link-local (fe80::/10) is
-// auto-assigned by the kernel from the dev_addr MAC via modified EUI-64.
-// Returns nil (not an error) if the netdev doesn't exist yet — the kernel
-// creates it asynchronously after UDC bind, so the caller may retry.
+// bringUpNcmInterface brings up usb0, assigns JetKVM a deterministic private
+// IPv4 address, installs host isolation, and starts the single-host DHCP
+// service. The short retry handles configfs creating usb0 asynchronously after
+// UDC bind.
 func (u *UsbGadget) bringUpNcmInterface() error {
-	link, err := netlink.LinkByName(ncmInterfaceName)
-	if err != nil {
-		var lnf netlink.LinkNotFoundError
-		if errors.As(err, &lnf) {
-			return nil
+	var link netlink.Link
+	var err error
+	for i := 0; i < 20; i++ {
+		link, err = netlink.LinkByName(ncmInterfaceName)
+		if err == nil {
+			break
 		}
-		return fmt.Errorf("lookup %s: %w", ncmInterfaceName, err)
+		var lnf netlink.LinkNotFoundError
+		if !errors.As(err, &lnf) {
+			return fmt.Errorf("lookup %s: %w", ncmInterfaceName, err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if err != nil {
+		return fmt.Errorf("%s did not appear after gadget bind: %w", ncmInterfaceName, err)
 	}
 
-	// Guard against a sysctl override leaving IPv6 disabled on this interface;
-	// the IPv6 link-local fe80:: is our only reachability path.
 	_ = os.WriteFile("/proc/sys/net/ipv6/conf/"+ncmInterfaceName+"/disable_ipv6", []byte("0"), 0644)
 
+	addr, err := netlink.ParseAddr(NCMServerIPv4CIDR)
+	if err != nil {
+		return fmt.Errorf("parse NCM address: %w", err)
+	}
+	if err := netlink.AddrReplace(link, addr); err != nil {
+		return fmt.Errorf("set %s address: %w", ncmInterfaceName, err)
+	}
 	if err := netlink.LinkSetUp(link); err != nil {
 		return fmt.Errorf("link up %s: %w", ncmInterfaceName, err)
 	}
 
-	// Install the host-isolation firewall before returning success. Fail closed:
-	// if the firewall can't be installed, usb0 must not be exposed.
+	// Install isolation before opening DHCP. Fail closed if either stage fails.
 	if err := u.applyNcmFirewall(); err != nil {
-		// Roll back the link so we don't leak an unfiltered interface.
 		_ = netlink.LinkSetDown(link)
 		return fmt.Errorf("apply NCM firewall: %w", err)
 	}
+	if err := u.startNcmDHCP(); err != nil {
+		u.removeNcmFirewall()
+		_ = netlink.LinkSetDown(link)
+		return fmt.Errorf("start NCM DHCP: %w", err)
+	}
+
+	u.log.Info().Str("address", NCMServerIPv4CIDR).Str("peer", NCMPeerIPv4).Msg("USB Ethernet ready")
 	return nil
 }
 
-// tearDownNcmInterface removes the firewall and brings usb0 down before the
-// gadget rebind drops the netdev. Both steps are best-effort.
 func (u *UsbGadget) tearDownNcmInterface() {
+	u.stopNcmDHCP()
 	u.removeNcmFirewall()
 	link, err := netlink.LinkByName(ncmInterfaceName)
 	if err != nil {

@@ -43,3 +43,9 @@ jobs:
       - uses: becheran/go-testreport@v0.3.2
         with:
           input: testreport.json
+      - name: Upload RDP prototype binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: jetkvm-rdp-prototype
+          path: bin/jetkvm_app
+          if-no-files-found: error

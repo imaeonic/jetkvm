@@ -36,7 +36,8 @@ var (
 		Name: "jetkvm_rdp_bridge_target_dial_failures_total",
 		Help: "RDP bridge attempts that could not reach the target RDP service",
 	})
-	rdpBridgeSessionCount atomic.Int64
+	rdpBridgeSessionCount    atomic.Int64
+	rdpBridgeTargetReachable atomic.Bool
 )
 
 func rdpTargetAddress() string {
@@ -96,12 +97,14 @@ func proxyRDPSession(client net.Conn) {
 	if err != nil {
 		rdpBridgeDialFailures.Inc()
 		rdpBridgeTargetUp.Set(0)
+		rdpBridgeTargetReachable.Store(false)
 		logger.Debug().Err(err).Str("target", rdpTargetAddress()).Msg("RDP target unavailable")
 		return
 	}
 	defer target.Close()
 
 	rdpBridgeTargetUp.Set(1)
+	rdpBridgeTargetReachable.Store(true)
 	count := rdpBridgeSessionCount.Add(1)
 	rdpBridgeActive.Set(float64(count))
 	defer func() {
@@ -151,8 +154,10 @@ func probeRDPTarget() {
 	conn, err := rdpDialer(1200 * time.Millisecond).Dial("tcp", rdpTargetAddress())
 	if err != nil {
 		rdpBridgeTargetUp.Set(0)
+		rdpBridgeTargetReachable.Store(false)
 		return
 	}
 	rdpBridgeTargetUp.Set(1)
+	rdpBridgeTargetReachable.Store(true)
 	_ = conn.Close()
 }

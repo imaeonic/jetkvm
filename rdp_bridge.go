@@ -58,6 +58,7 @@ func rdpDialer(timeout time.Duration) *net.Dialer {
 // between mstsc and Windows instead of being reimplemented by JetKVM.
 func initRDPBridge(ctx context.Context) {
 	go runRDPBridge(ctx)
+	go runRDPUDPBridge(ctx)
 	go monitorRDPTarget(ctx)
 }
 
